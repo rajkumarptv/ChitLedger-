@@ -2,7 +2,8 @@
 export enum PaymentStatus {
   PAID = 'PAID',
   PENDING = 'PENDING',
-  OVERDUE = 'OVERDUE'
+  OVERDUE = 'OVERDUE',
+  MEMBER_CLAIMED = 'MEMBER_CLAIMED'  // Member says they paid, waiting admin confirmation
 }
 
 export enum PaymentMethod {
@@ -47,6 +48,8 @@ export interface ChitConfig {
   durationMonths: number;
   startDate: string;
   adminPhone: string;
+  upiId?: string;        // e.g. 9876543210@paytm or name@upi
+  upiName?: string;      // Display name shown on UPI payment screen
 }
 
 export interface PaymentRecord {
