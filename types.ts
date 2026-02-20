@@ -35,15 +35,15 @@ export interface Member {
 
 export interface MonthlyAuction {
   monthIndex: number;
-  auctionAmount: number; // The "Action Amount" or discount taken
+  auctionAmount: number;
 }
 
 export interface ChitConfig {
   id: string;
   name: string;
-  totalChitValue: number;      // e.g. 5,00,000
-  fixedMonthlyCollection: number; // e.g. 2,000 (collected from each member)
-  monthlyPayoutBase: number;    // e.g. 25,000 (the base for payout before action discount)
+  totalChitValue: number;
+  fixedMonthlyCollection: number;
+  monthlyPayoutBase: number;
   durationMonths: number;
   startDate: string;
   adminPhone: string;
@@ -52,11 +52,14 @@ export interface ChitConfig {
 export interface PaymentRecord {
   memberId: string;
   monthIndex: number;
-  amount: number;      // Strictly fixed (e.g. 2,000)
-  extraAmount?: number; // Miscellaneous fees/fines (optional)
+  amount: number;
+  extraAmount?: number;
   status: PaymentStatus;
   method?: PaymentMethod;
   paymentDate?: string;
+  receiptUrl?: string;      // base64 image or URL of uploaded receipt
+  receiptName?: string;     // original filename
+  notes?: string;           // optional admin notes
 }
 
 export interface AppData {
