@@ -52,7 +52,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   const [memberReceiptFile, setMemberReceiptFile] = useState<{ url: string; name: string } | null>(null);
   const [memberReceiptLoading, setMemberReceiptLoading] = useState(false);
   const [memberNotes, setMemberNotes] = useState('');
-  const [upiClicked, setUpiClicked] = useState(false);
+  const [upiClickedFor, setUpiClickedFor] = useState<string | null>(null); // tracks which memberId clicked UPI
 
   // Receipt viewer
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
@@ -335,31 +335,56 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                             </span>
                           ) : (
                             <>
-                              {/* UPI quick pay buttons */}
-                              {hasUpi && (
-                                <div className="flex space-x-1">
-                                  <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'gpay')}
-                                    onClick={() => { setUpiClicked(true); setTimeout(() => openMemberPayModal(member.id, member.name, selectedMonthIdx), 1500); }}
-                                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 text-[9px] font-black rounded-lg border border-blue-100 hover:bg-blue-100 transition-all active:scale-95">
-                                    <Smartphone className="w-3 h-3" /><span>GPay</span>
-                                  </a>
-                                  <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'phonepe')}
-                                    onClick={() => { setUpiClicked(true); setTimeout(() => openMemberPayModal(member.id, member.name, selectedMonthIdx), 1500); }}
-                                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-purple-50 text-purple-700 text-[9px] font-black rounded-lg border border-purple-100 hover:bg-purple-100 transition-all active:scale-95">
-                                    <Smartphone className="w-3 h-3" /><span>PhonePe</span>
-                                  </a>
-                                  <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'paytm')}
-                                    onClick={() => { setUpiClicked(true); setTimeout(() => openMemberPayModal(member.id, member.name, selectedMonthIdx), 1500); }}
-                                    className="flex items-center space-x-1 px-2.5 py-1.5 bg-sky-50 text-sky-700 text-[9px] font-black rounded-lg border border-sky-100 hover:bg-sky-100 transition-all active:scale-95">
-                                    <Wallet className="w-3 h-3" /><span>Paytm</span>
-                                  </a>
+                              {upiClickedFor === member.id ? (
+                                /* STEP 2: After UPI tap — show "I've Paid" confirm button */
+                                <div className="flex flex-col items-end space-y-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                  <p className="text-[9px] text-emerald-600 font-black uppercase tracking-widest">✓ Payment opened! Done?</p>
+                                  <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
+                                    className="flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-600 text-white text-[10px] font-black rounded-xl hover:bg-emerald-700 transition-all active:scale-95 uppercase tracking-widest shadow-lg animate-pulse">
+                                    <CheckCircle2 className="w-4 h-4" /><span>I've Paid ✓</span>
+                                  </button>
+                                  <button onClick={() => setUpiClickedFor(null)}
+                                    className="text-[9px] text-slate-400 font-bold hover:text-slate-600 underline">
+                                    Cancel
+                                  </button>
+                                </div>
+                              ) : (
+                                /* STEP 1: Show Pay Now which expands to UPI options */
+                                <div className="flex flex-col items-end space-y-1.5">
+                                  {hasUpi ? (
+                                    <>
+                                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Pay ₹{fixedAmount.toLocaleString()} via</p>
+                                      <div className="flex space-x-1">
+                                        <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'gpay')}
+                                          onClick={() => setUpiClickedFor(member.id)}
+                                          className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 text-[9px] font-black rounded-lg border border-blue-100 hover:bg-blue-100 transition-all active:scale-95">
+                                          <Smartphone className="w-3 h-3" /><span>GPay</span>
+                                        </a>
+                                        <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'phonepe')}
+                                          onClick={() => setUpiClickedFor(member.id)}
+                                          className="flex items-center space-x-1 px-2.5 py-1.5 bg-purple-50 text-purple-700 text-[9px] font-black rounded-lg border border-purple-100 hover:bg-purple-100 transition-all active:scale-95">
+                                          <Smartphone className="w-3 h-3" /><span>PhonePe</span>
+                                        </a>
+                                        <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'paytm')}
+                                          onClick={() => setUpiClickedFor(member.id)}
+                                          className="flex items-center space-x-1 px-2.5 py-1.5 bg-sky-50 text-sky-700 text-[9px] font-black rounded-lg border border-sky-100 hover:bg-sky-100 transition-all active:scale-95">
+                                          <Wallet className="w-3 h-3" /><span>Paytm</span>
+                                        </a>
+                                      </div>
+                                      <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
+                                        className="text-[9px] text-slate-400 font-bold hover:text-slate-600 underline tracking-widest">
+                                        Paid by cash? Click here
+                                      </button>
+                                    </>
+                                  ) : (
+                                    /* No UPI set — just show cash pay button */
+                                    <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
+                                      className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-xl hover:bg-indigo-100 transition-all active:scale-95 uppercase tracking-widest border border-indigo-100">
+                                      <Banknote className="w-3.5 h-3.5" /><span>Mark as Paid</span>
+                                    </button>
+                                  )}
                                 </div>
                               )}
-                              {/* "I've Paid" button — for cash or after UPI */}
-                              <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
-                                className="flex items-center space-x-1.5 px-4 py-2 bg-emerald-600 text-white text-[10px] font-black rounded-xl hover:bg-emerald-700 transition-all active:scale-95 uppercase tracking-widest shadow-sm">
-                                <CheckCircle2 className="w-3.5 h-3.5" /><span>I've Paid</span>
-                              </button>
                             </>
                           )}
                         </div>
