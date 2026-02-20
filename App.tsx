@@ -71,9 +71,16 @@ const App: React.FC = () => {
         setCloudReady(true);
 
         if (newData !== null) {
-          // Only update if cloud data is newer/different
-          setData(newData);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+          // Safely merge cloud data with defaults to prevent crashes
+          // when Firestore doc is missing fields like config
+          const safeData: AppData = {
+            config: { ...INITIAL_DATA.config, ...(newData.config || {}) },
+            members: newData.members || [],
+            payments: newData.payments || [],
+            auctions: newData.auctions || [],
+          };
+          setData(safeData);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(safeData));
         } else {
           // Cloud doc is empty — push local data up to Firestore
           const local = localStorage.getItem(STORAGE_KEY);
