@@ -93,6 +93,37 @@ export const ChitSettings: React.FC<ChitSettingsProps> = ({ config, userRole, on
                 <input disabled={!isAdmin} type="tel" value={formData.adminPhone} onChange={(e) => setFormData({ ...formData, adminPhone: e.target.value })} className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-black text-slate-800 outline-none" />
               </div>
             </div>
+
+            {/* UPI Payment Settings */}
+            <div className="p-5 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl border border-indigo-100 space-y-4">
+              <div className="flex items-center space-x-2 mb-1">
+                <Wallet className="w-4 h-4 text-indigo-600" />
+                <p className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">UPI Payment Collection</p>
+              </div>
+              <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-widest -mt-2">Members can pay directly via GPay / PhonePe / Paytm</p>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Your UPI ID</label>
+                <input disabled={!isAdmin} type="text"
+                  placeholder="e.g. 9876543210@paytm or name@upi"
+                  value={formData.upiId || ''}
+                  onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
+                  className="w-full px-4 py-3 bg-white border-2 border-indigo-100 rounded-xl font-black text-indigo-700 outline-none focus:border-indigo-500 transition-colors placeholder:font-medium placeholder:text-slate-300" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Display Name (shown on payment screen)</label>
+                <input disabled={!isAdmin} type="text"
+                  placeholder="e.g. Raj Kumar Chit Fund"
+                  value={formData.upiName || ''}
+                  onChange={(e) => setFormData({ ...formData, upiName: e.target.value })}
+                  className="w-full px-4 py-3 bg-white border-2 border-indigo-100 rounded-xl font-black text-slate-800 outline-none focus:border-indigo-500 transition-colors placeholder:font-medium placeholder:text-slate-300" />
+              </div>
+              {formData.upiId && (
+                <div className="flex items-center space-x-2 px-3 py-2 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">UPI Active — Members will see Pay Now buttons</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {isAdmin && (
