@@ -1,0 +1,42 @@
+
+{
+  "name": "ChitTrack Pro Manager",
+  "short_name": "ChitTrack",
+  "description": "Offline-ready professional chit fund management and member tracking application.",
+  "id": "com.chittrack.pro.app",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#4f46e5",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5571/5571613.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5571/5571613.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5571/5571613.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["finance", "business"],
+  "screenshots": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/5571/5571613.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "label": "Dashboard View"
+    }
+  ]
+}

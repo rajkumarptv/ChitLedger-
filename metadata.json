@@ -1,0 +1,7 @@
+{
+  "name": "ChitTrack Pro",
+  "description": "A high-end financial tracking application designed for chit fund managers to monitor contributions, track payment statuses across rounds, and receive AI-powered insights on collection health.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
