@@ -55,14 +55,15 @@ export interface ChitConfig {
 export interface PaymentRecord {
   memberId: string;
   monthIndex: number;
-  amount: number;
+  amount: number;           // Default fixed amount
+  customAmount?: number;    // Admin override — specific amount for this member/month
   extraAmount?: number;
   status: PaymentStatus;
   method?: PaymentMethod;
   paymentDate?: string;
-  receiptUrl?: string;      // base64 image or URL of uploaded receipt
-  receiptName?: string;     // original filename
-  notes?: string;           // optional admin notes
+  receiptUrl?: string;
+  receiptName?: string;
+  notes?: string;
 }
 
 export interface AppData {
