@@ -11,7 +11,7 @@ import { formatMonthYear, getCurrentMonthIndex } from '../utils/dateUtils';
 interface PaymentGridProps {
   data: AppData;
   userRole: UserRole;
-  onUpdateStatus: (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount?: number, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string) => void;
+  onUpdateStatus: (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount?: number, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string, customAmount?: number) => void;
   onUpdateAuction: (monthIndex: number, amount: number) => void;
 }
 
@@ -45,6 +45,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   const [payNotes, setPayNotes] = useState('');
   const [receiptFile, setReceiptFile] = useState<{ url: string; name: string } | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
+  const [payAmount, setPayAmount] = useState<number>(0); // custom amount for this member
 
   // Member "I've Paid" modal
   const [memberPayModal, setMemberPayModal] = useState<{ memberId: string; memberName: string; monthIndex: number } | null>(null);
@@ -77,6 +78,8 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
     setPayMethod(existing?.method || PaymentMethod.CASH);
     setPayNotes(existing?.notes || '');
     setReceiptFile(existing?.receiptUrl ? { url: existing.receiptUrl, name: existing.receiptName || 'receipt' } : null);
+    // Set amount: use existing custom amount, or default
+    setPayAmount(existing?.customAmount || data.config.fixedMonthlyCollection);
   };
 
   const closeAdminModal = () => { setAdminModal(null); setReceiptFile(null); setPayNotes(''); };
@@ -107,7 +110,9 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
 
   const handleAdminConfirm = () => {
     if (!adminModal) return;
-    onUpdateStatus(adminModal.memberId, adminModal.monthIndex, PaymentStatus.PAID, payMethod, 0, payDate, receiptFile?.url, receiptFile?.name, payNotes);
+    const defaultAmount = data.config.fixedMonthlyCollection;
+    const finalCustomAmount = payAmount !== defaultAmount ? payAmount : undefined;
+    onUpdateStatus(adminModal.memberId, adminModal.monthIndex, PaymentStatus.PAID, payMethod, 0, payDate, receiptFile?.url, receiptFile?.name, payNotes, finalCustomAmount);
     closeAdminModal();
   };
 
@@ -230,7 +235,8 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 const payment = data.payments.find(p => p.memberId === member.id && p.monthIndex === selectedMonthIdx);
                 const isPaid = payment?.status === PaymentStatus.PAID;
                 const isClaimed = payment?.status === PaymentStatus.MEMBER_CLAIMED;
-                const fixedAmount = data.config.fixedMonthlyCollection;
+                // Use customAmount if admin set one, otherwise use default
+                const fixedAmount = payment?.customAmount || data.config.fixedMonthlyCollection;
                 const monthNote = `Chit ${formatMonthYear(data.config.startDate, selectedMonthIdx)}`;
 
                 return (
@@ -248,7 +254,12 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <p className="text-sm font-black text-slate-700 italic">₹{fixedAmount.toLocaleString()}</p>
+                      <div>
+                        <p className="text-sm font-black text-slate-700 italic">₹{fixedAmount.toLocaleString()}</p>
+                        {payment?.customAmount && payment.customAmount !== data.config.fixedMonthlyCollection && (
+                          <p className="text-[9px] text-amber-600 font-black uppercase tracking-widest">Custom ↑</p>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {isPaid ? (
@@ -411,7 +422,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                   {adminModal.existing?.status === PaymentStatus.MEMBER_CLAIMED ? 'Confirming Member Claim' : 'Collecting Payment'}
                 </p>
                 <h2 className="text-white text-xl font-black">{adminModal.memberName}</h2>
-                <p className="text-white/70 text-xs mt-0.5">{formatMonthYear(data.config.startDate, adminModal.monthIndex)} · ₹{data.config.fixedMonthlyCollection.toLocaleString()}</p>
+                <p className="text-white/70 text-xs mt-0.5">{formatMonthYear(data.config.startDate, adminModal.monthIndex)} · ₹{payAmount.toLocaleString()}</p>
               </div>
               <button onClick={closeAdminModal} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors">
                 <X className="w-5 h-5 text-white" />
@@ -427,6 +438,23 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                   {adminModal.existing.notes && <p className="text-[10px] text-amber-600 mt-2 font-medium">Note: {adminModal.existing.notes}</p>}
                 </div>
               )}
+              {/* Editable Amount */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">💰 Amount to Collect</label>
+                <div className="flex items-center bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 focus-within:border-indigo-500 transition-all">
+                  <span className="text-slate-400 font-bold mr-2 text-lg">₹</span>
+                  <input type="number"
+                    value={payAmount}
+                    onChange={(e) => setPayAmount(parseInt(e.target.value) || 0)}
+                    className="bg-transparent font-black text-slate-900 outline-none w-full text-xl" />
+                </div>
+                {payAmount !== data.config.fixedMonthlyCollection && (
+                  <div className="flex items-center justify-between mt-1.5">
+                    <p className="text-[9px] text-amber-600 font-black uppercase tracking-widest">⚠ Custom amount (default: ₹{data.config.fixedMonthlyCollection.toLocaleString()})</p>
+                    <button onClick={() => setPayAmount(data.config.fixedMonthlyCollection)} className="text-[9px] text-indigo-500 font-black hover:underline">Reset</button>
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📅 Payment Date</label>
                 <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)}
