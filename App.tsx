@@ -132,16 +132,16 @@ const App: React.FC = () => {
     });
   };
 
-  const handleUpdatePayment = (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount: number = 0, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string) => {
+  const handleUpdatePayment = (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount: number = 0, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string, customAmount?: number) => {
     if (auth.role !== UserRole.ADMIN) return;
     const existingIdx = data.payments.findIndex(p => p.memberId === memberId && p.monthIndex === monthIndex);
     const newPayments = [...data.payments];
     const amount = data.config.fixedMonthlyCollection;
     const paymentDate = status === PaymentStatus.PAID ? (customDate || calculatePaymentDate(data.config.startDate, monthIndex)) : undefined;
     if (existingIdx >= 0) {
-      newPayments[existingIdx] = { ...newPayments[existingIdx], status, amount, extraAmount, method, paymentDate, receiptUrl, receiptName, notes };
+      newPayments[existingIdx] = { ...newPayments[existingIdx], status, amount, customAmount, extraAmount, method, paymentDate, receiptUrl, receiptName, notes };
     } else {
-      newPayments.push({ memberId, monthIndex, amount, extraAmount, status, method, paymentDate, receiptUrl, receiptName, notes });
+      newPayments.push({ memberId, monthIndex, amount, customAmount, extraAmount, status, method, paymentDate, receiptUrl, receiptName, notes });
     }
     safeSave({ ...data, payments: newPayments });
   };
