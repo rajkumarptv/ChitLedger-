@@ -12,6 +12,7 @@ interface PaymentGridProps {
   data: AppData;
   userRole: UserRole;
   onUpdateStatus: (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount?: number, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string, customAmount?: number) => void;
+  onSetCustomAmount: (memberId: string, monthIndex: number, customAmount: number) => void;
   onUpdateAuction: (monthIndex: number, amount: number) => void;
 }
 
@@ -33,13 +34,13 @@ const METHOD_OPTIONS = [
   { value: PaymentMethod.OTHER,   label: 'Other',    icon: <CreditCard className="w-4 h-4" /> },
 ];
 
-export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpdateStatus, onUpdateAuction }) => {
+export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpdateStatus, onSetCustomAmount, onUpdateAuction }) => {
   const realCurrentMonthIdx = getCurrentMonthIndex(data.config.startDate);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(realCurrentMonthIdx);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Admin collect modal
-  const [adminModal, setAdminModal] = useState<{ memberId: string; memberName: string; monthIndex: number; existing?: PaymentRecord } | null>(null);
+  const [adminModal, setAdminModal] = useState<{ memberId: string; memberName: string; monthIndex: number; existing?: PaymentRecord; mode: 'set_amount' | 'confirm_payment' } | null>(null);
   const [payDate, setPayDate] = useState('');
   const [payMethod, setPayMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [payNotes, setPayNotes] = useState('');
@@ -72,17 +73,22 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   // Pending verifications count for admin badge
   const pendingVerifications = data.payments.filter(p => p.status === PaymentStatus.MEMBER_CLAIMED).length;
 
-  const openAdminModal = (memberId: string, memberName: string, monthIndex: number, existing?: PaymentRecord) => {
-    setAdminModal({ memberId, memberName, monthIndex, existing });
+  const openAdminModal = (memberId: string, memberName: string, monthIndex: number, existing?: PaymentRecord, mode: 'set_amount' | 'confirm_payment' = 'confirm_payment') => {
+    setAdminModal({ memberId, memberName, monthIndex, existing, mode });
     setPayDate(existing?.paymentDate || new Date().toISOString().split('T')[0]);
     setPayMethod(existing?.method || PaymentMethod.CASH);
     setPayNotes(existing?.notes || '');
     setReceiptFile(existing?.receiptUrl ? { url: existing.receiptUrl, name: existing.receiptName || 'receipt' } : null);
-    // Set amount: use existing custom amount, or default
     setPayAmount(existing?.customAmount || data.config.fixedMonthlyCollection);
   };
 
   const closeAdminModal = () => { setAdminModal(null); setReceiptFile(null); setPayNotes(''); };
+
+  const handleSetAmount = () => {
+    if (!adminModal) return;
+    onSetCustomAmount(adminModal.memberId, adminModal.monthIndex, payAmount);
+    closeAdminModal();
+  };
 
   const openMemberPayModal = (memberId: string, memberName: string, monthIndex: number) => {
     setMemberPayModal({ memberId, memberName, monthIndex });
@@ -316,10 +322,16 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                               </button>
                             </>
                           ) : !isPaid ? (
-                            <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx)}
-                              className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 transition-all shadow-sm active:scale-95 uppercase tracking-widest">
-                              <BadgeCheck className="w-3.5 h-3.5" /><span>Collect</span>
-                            </button>
+                            <div className="flex flex-col items-end space-y-1">
+                              <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment, 'confirm_payment')}
+                                className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 transition-all shadow-sm active:scale-95 uppercase tracking-widest">
+                                <BadgeCheck className="w-3.5 h-3.5" /><span>Collect</span>
+                              </button>
+                              <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment, 'set_amount')}
+                                className="text-[9px] text-indigo-400 font-black hover:text-indigo-600 underline tracking-widest uppercase">
+                                Set Amount
+                              </button>
+                            </div>
                           ) : (
                             <div className="flex space-x-1.5">
                               <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment)}
@@ -416,10 +428,10 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
       {adminModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className={`px-6 py-5 flex items-center justify-between ${adminModal.existing?.status === PaymentStatus.MEMBER_CLAIMED ? 'bg-amber-500' : 'bg-indigo-600'}`}>
+            <div className={`px-6 py-5 flex items-center justify-between ${adminModal.existing?.status === PaymentStatus.MEMBER_CLAIMED ? 'bg-amber-500' : adminModal.mode === 'set_amount' ? 'bg-indigo-600' : 'bg-emerald-600'}`}>
               <div>
                 <p className="text-white/70 text-[10px] font-black uppercase tracking-widest">
-                  {adminModal.existing?.status === PaymentStatus.MEMBER_CLAIMED ? 'Confirming Member Claim' : 'Collecting Payment'}
+                  {adminModal.existing?.status === PaymentStatus.MEMBER_CLAIMED ? 'Confirming Member Claim' : adminModal.mode === 'set_amount' ? 'Set Custom Amount' : 'Collecting Payment'}
                 </p>
                 <h2 className="text-white text-xl font-black">{adminModal.memberName}</h2>
                 <p className="text-white/70 text-xs mt-0.5">{formatMonthYear(data.config.startDate, adminModal.monthIndex)} · ₹{payAmount.toLocaleString()}</p>
@@ -493,10 +505,22 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 <input type="text" placeholder="Optional notes..." value={payNotes} onChange={(e) => setPayNotes(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-500 transition-all placeholder:text-slate-300" />
               </div>
-              <button onClick={handleAdminConfirm}
-                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest">
-                <CheckCircle2 className="w-5 h-5" /><span>Confirm Payment Received</span>
-              </button>
+              {adminModal.mode === 'set_amount' ? (
+                /* SET AMOUNT MODE — saves custom amount, keeps status as PENDING */
+                <div className="space-y-3">
+                  <button onClick={handleSetAmount}
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest">
+                    <BadgeCheck className="w-5 h-5" /><span>Save Amount for Member</span>
+                  </button>
+                  <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Member will see ₹{payAmount.toLocaleString()} in their payment link</p>
+                </div>
+              ) : (
+                /* CONFIRM PAYMENT MODE — marks as fully paid */
+                <button onClick={handleAdminConfirm}
+                  className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest">
+                  <CheckCircle2 className="w-5 h-5" /><span>Confirm Payment Received</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
