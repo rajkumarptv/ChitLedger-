@@ -146,6 +146,23 @@ const App: React.FC = () => {
     safeSave({ ...data, payments: newPayments });
   };
 
+  // Save custom amount for a member WITHOUT marking as paid
+  // This lets admin set "this member needs to pay ₹4000" so member sees it in UPI
+  const handleSetCustomAmount = (memberId: string, monthIndex: number, customAmount: number) => {
+    if (auth.role !== UserRole.ADMIN) return;
+    const existingIdx = data.payments.findIndex(p => p.memberId === memberId && p.monthIndex === monthIndex);
+    const newPayments = [...data.payments];
+    const amount = data.config.fixedMonthlyCollection;
+    if (existingIdx >= 0) {
+      // Keep existing status, just update the amount
+      newPayments[existingIdx] = { ...newPayments[existingIdx], customAmount };
+    } else {
+      // Create a PENDING record with the custom amount
+      newPayments.push({ memberId, monthIndex, amount, customAmount, extraAmount: 0, status: PaymentStatus.PENDING });
+    }
+    safeSave({ ...data, payments: newPayments });
+  };
+
   const handleUpdateAuction = (monthIndex: number, auctionAmount: number) => {
     if (auth.role !== UserRole.ADMIN) return;
     const newAuctions = [...data.auctions];
@@ -268,7 +285,7 @@ const App: React.FC = () => {
 
       {activeTab === 'dashboard' && <Dashboard data={data} />}
       {activeTab === 'payments' && (
-        <PaymentGrid data={data} userRole={auth.role} onUpdateStatus={handleUpdatePayment} onUpdateAuction={handleUpdateAuction} />
+        <PaymentGrid data={data} userRole={auth.role} onUpdateStatus={handleUpdatePayment} onSetCustomAmount={handleSetCustomAmount} onUpdateAuction={handleUpdateAuction} />
       )}
       {activeTab === 'members' && (
         <MemberList members={data.members} userRole={auth.role} onAddMember={handleAddMember} onUpdateMember={handleUpdateMember} onDeleteMember={handleDeleteMember} />
