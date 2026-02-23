@@ -27,6 +27,14 @@ const buildUpiLink = (upiId: string, upiName: string, amount: number, note: stri
   }
 };
 
+// Same phone matching logic as Login — compares last 10 digits
+const matchPhone = (p1: string, p2: string) => {
+  const s1 = p1.replace(/\D/g, '');
+  const s2 = p2.replace(/\D/g, '');
+  if (s1.length >= 10 && s2.length >= 10) return s1.slice(-10) === s2.slice(-10);
+  return s1 === s2 && s1.length > 0;
+};
+
 const METHOD_OPTIONS = [
   { value: PaymentMethod.GPAY,    label: 'GPay',    icon: <Smartphone className="w-4 h-4" />, color: 'bg-blue-50 border-blue-200 text-blue-700' },
   { value: PaymentMethod.PHONEPE, label: 'PhonePe', icon: <Smartphone className="w-4 h-4" />, color: 'bg-purple-50 border-purple-200 text-purple-700' },
@@ -253,7 +261,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, logged
                 const isClaimed = payment?.status === PaymentStatus.MEMBER_CLAIMED;
                 const dueAmount = payment?.customAmount || data.config.fixedMonthlyCollection;
                 // Member can only pay their own row
-                const isMyRow = member.phone === loggedInPhone;
+                const isMyRow = matchPhone(member.phone, loggedInPhone);
 
                 return (
                   <tr key={member.id} className={`hover:bg-slate-50/50 transition-colors ${isClaimed ? 'bg-amber-50/50' : ''}`}>
