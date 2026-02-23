@@ -51,6 +51,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   // Member payment screen state — Paytm-style
   const [memberPayScreen, setMemberPayScreen] = useState<{ memberId: string; memberName: string; monthIndex: number; defaultAmount: number } | null>(null);
   const [memberPayAmount, setMemberPayAmount] = useState<number>(0);
+  const [customAmountStr, setCustomAmountStr] = useState<string>(''); // raw string to avoid leading zero issue
   const [memberPayStep, setMemberPayStep] = useState<'enter_amount' | 'choose_method'>('enter_amount');
 
   // Member "I've Paid" confirm modal
@@ -103,6 +104,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   const openMemberPayScreen = (memberId: string, memberName: string, monthIndex: number, amount: number) => {
     setMemberPayScreen({ memberId, memberName, monthIndex, defaultAmount: amount });
     setMemberPayAmount(amount);
+    setCustomAmountStr('');
     setMemberPayStep('enter_amount');
   };
   const closeMemberPayScreen = () => { setMemberPayScreen(null); setMemberPayStep('enter_amount'); };
@@ -414,7 +416,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Due: {formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}</p>
 
                 {/* Total Due option */}
-                <button onClick={() => setMemberPayAmount(memberPayScreen.defaultAmount)}
+                <button onClick={() => { setMemberPayAmount(memberPayScreen.defaultAmount); setCustomAmountStr(''); }}
                   className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${memberPayAmount === memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}>
                   <div className="flex items-center space-x-3">
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${memberPayAmount === memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'}`}>
@@ -426,21 +428,27 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 </button>
 
                 {/* Custom amount option */}
-                <div className={`w-full p-4 rounded-xl border-2 transition-all ${memberPayAmount !== memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-slate-50'}`}>
+                <div className={`w-full p-4 rounded-xl border-2 transition-all ${customAmountStr !== '' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-slate-50'}`}>
                   <div className="flex items-center space-x-3 mb-3">
-                    <button onClick={() => setMemberPayAmount(0)}
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${memberPayAmount !== memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'}`}>
-                      {memberPayAmount !== memberPayScreen.defaultAmount && <div className="w-2 h-2 bg-white rounded-full" />}
+                    <button onClick={() => { setCustomAmountStr(''); setMemberPayAmount(0); }}
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${customAmountStr !== '' ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'}`}>
+                      {customAmountStr !== '' && <div className="w-2 h-2 bg-white rounded-full" />}
                     </button>
                     <span className="font-black text-slate-800">Customise Amount</span>
                   </div>
                   <div className="flex items-center bg-white border-2 border-slate-200 rounded-xl px-4 py-3 focus-within:border-indigo-500 transition-all">
                     <span className="text-slate-400 font-bold mr-2 text-xl">₹</span>
-                    <input type="number"
+                    <input
+                      type="number"
+                      inputMode="numeric"
                       placeholder={memberPayScreen.defaultAmount.toString()}
-                      value={memberPayAmount !== memberPayScreen.defaultAmount ? memberPayAmount : ''}
-                      onChange={(e) => setMemberPayAmount(parseInt(e.target.value) || 0)}
-                      onClick={() => setMemberPayAmount(0)}
+                      value={customAmountStr}
+                      onFocus={() => { setCustomAmountStr(''); setMemberPayAmount(0); }}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/^0+/, '') || '';
+                        setCustomAmountStr(raw);
+                        setMemberPayAmount(parseInt(raw) || 0);
+                      }}
                       className="bg-transparent font-black text-slate-900 outline-none w-full text-xl placeholder:text-slate-300" />
                   </div>
                 </div>
