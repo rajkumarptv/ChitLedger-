@@ -133,7 +133,10 @@ const App: React.FC = () => {
   };
 
   const handleUpdatePayment = (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount: number = 0, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string, customAmount?: number) => {
-    if (auth.role !== UserRole.ADMIN) return;
+    // Members can only claim their own payment — admin can do everything
+    const isMemberClaim = auth.role === UserRole.MEMBER && status === PaymentStatus.MEMBER_CLAIMED;
+    const isOwnRecord = data.members.find(m => m.id === memberId && m.phone.replace(/\D/g,'').slice(-10) === auth.phoneNumber.replace(/\D/g,'').slice(-10));
+    if (auth.role !== UserRole.ADMIN && !(isMemberClaim && isOwnRecord)) return;
     const existingIdx = data.payments.findIndex(p => p.memberId === memberId && p.monthIndex === monthIndex);
     const newPayments = [...data.payments];
     const amount = data.config.fixedMonthlyCollection;
