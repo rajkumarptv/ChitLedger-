@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { AppData, PaymentStatus, PaymentRecord, UserRole, PaymentMethod } from '../types';
 import {
   CheckCircle2, Clock, Search, Smartphone, Banknote, Tag, Info, Zap,
@@ -73,6 +73,11 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, logged
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
 
   const isAdmin = userRole === UserRole.ADMIN;
+  const firstClaimedRef = useRef<HTMLTableRowElement>(null);
+
+  const scrollToFirstClaimed = () => {
+    firstClaimedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
   const currentAuction = data.auctions.find(a => a.monthIndex === selectedMonthIdx);
   const auctionAmount = currentAuction ? currentAuction.auctionAmount : 0;
   const filteredMembers = data.members.filter(m =>
@@ -155,16 +160,20 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, logged
 
       {/* Admin pending verifications alert */}
       {isAdmin && pendingVerifications > 0 && (
-        <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
+        <button onClick={scrollToFirstClaimed}
+          className="w-full flex items-center justify-between px-5 py-4 bg-amber-50 border-2 border-amber-300 rounded-2xl shadow-sm hover:bg-amber-100 active:scale-95 transition-all cursor-pointer">
           <div className="flex items-center space-x-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-            <div>
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 animate-pulse" />
+            <div className="text-left">
               <p className="text-sm font-black text-amber-900">{pendingVerifications} Payment{pendingVerifications > 1 ? 's' : ''} Awaiting Confirmation</p>
-              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Members claimed payment — verify below</p>
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Tap to jump to pending rows →</p>
             </div>
           </div>
-          <span className="w-7 h-7 flex items-center justify-center bg-amber-500 text-white text-xs font-black rounded-full">{pendingVerifications}</span>
-        </div>
+          <div className="flex items-center space-x-2">
+            <span className="w-7 h-7 flex items-center justify-center bg-amber-500 text-white text-xs font-black rounded-full animate-bounce">{pendingVerifications}</span>
+            <ChevronRight className="w-4 h-4 text-amber-500" />
+          </div>
+        </button>
       )}
 
       {/* Month Navigation */}
@@ -264,7 +273,10 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, logged
                 const isMyRow = matchPhone(member.phone, loggedInPhone);
 
                 return (
-                  <tr key={member.id} className={`hover:bg-slate-50/50 transition-colors ${isClaimed ? 'bg-amber-50/50' : ''}`}>
+                  <tr
+                    key={member.id}
+                    ref={isClaimed && !firstClaimedRef.current ? (el) => { if (el) (firstClaimedRef as any).current = el; } : undefined}
+                    className={`hover:bg-slate-50/50 transition-colors ${isClaimed ? 'bg-amber-100/70 border-l-4 border-amber-400' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center space-x-3">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm
