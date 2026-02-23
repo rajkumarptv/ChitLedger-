@@ -386,7 +386,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
 
           {memberPayStep === 'enter_amount' ? (
             /* ── STEP 1: Name + Amount entry ── */
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 pb-32 space-y-4">
 
               {/* Member info card */}
               <div className="bg-white rounded-2xl p-4 flex items-center space-x-4 shadow-sm border border-slate-100">
@@ -448,7 +448,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
             </div>
           ) : (
             /* ── STEP 2: Choose payment method ── */
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 pb-32 space-y-4">
               <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Amount to Pay</p>
@@ -531,7 +531,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
           )}
 
           {/* Bottom CTA */}
-          <div className="bg-white border-t border-slate-100 p-4 shadow-lg">
+          <div className="bg-white border-t border-slate-100 p-4 pb-24 shadow-lg">
             {memberPayStep === 'enter_amount' ? (
               <button
                 onClick={() => memberPayAmount > 0 && setMemberPayStep('choose_method')}
