@@ -4,7 +4,7 @@ import { AppData, PaymentStatus, PaymentRecord, UserRole, PaymentMethod } from '
 import {
   CheckCircle2, Clock, Search, Smartphone, Banknote, Tag, Info, Zap,
   ChevronLeft, ChevronRight, Calendar, X, Upload, Eye,
-  CreditCard, Wallet, BadgeCheck, FileImage, Trash2, AlertCircle, ShieldCheck
+  CreditCard, Wallet, BadgeCheck, FileImage, Trash2, AlertCircle, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import { formatMonthYear, getCurrentMonthIndex } from '../utils/dateUtils';
 
@@ -27,11 +27,11 @@ const buildUpiLink = (upiId: string, upiName: string, amount: number, note: stri
 };
 
 const METHOD_OPTIONS = [
-  { value: PaymentMethod.GPAY,    label: 'GPay',    icon: <Smartphone className="w-4 h-4" /> },
-  { value: PaymentMethod.PHONEPE, label: 'PhonePe', icon: <Smartphone className="w-4 h-4" /> },
-  { value: PaymentMethod.PAYTM,   label: 'Paytm',   icon: <Wallet className="w-4 h-4" /> },
-  { value: PaymentMethod.CASH,    label: 'Cash',     icon: <Banknote className="w-4 h-4" /> },
-  { value: PaymentMethod.OTHER,   label: 'Other',    icon: <CreditCard className="w-4 h-4" /> },
+  { value: PaymentMethod.GPAY,    label: 'GPay',    icon: <Smartphone className="w-4 h-4" />, color: 'bg-blue-50 border-blue-200 text-blue-700' },
+  { value: PaymentMethod.PHONEPE, label: 'PhonePe', icon: <Smartphone className="w-4 h-4" />, color: 'bg-purple-50 border-purple-200 text-purple-700' },
+  { value: PaymentMethod.PAYTM,   label: 'Paytm',   icon: <Wallet className="w-4 h-4" />,     color: 'bg-sky-50 border-sky-200 text-sky-700' },
+  { value: PaymentMethod.CASH,    label: 'Cash',     icon: <Banknote className="w-4 h-4" />,   color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+  { value: PaymentMethod.OTHER,   label: 'Other',    icon: <CreditCard className="w-4 h-4" />, color: 'bg-slate-50 border-slate-200 text-slate-700' },
 ];
 
 export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpdateStatus, onSetCustomAmount, onUpdateAuction }) => {
@@ -39,22 +39,25 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(realCurrentMonthIdx);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Admin collect modal
+  // Admin modal state
   const [adminModal, setAdminModal] = useState<{ memberId: string; memberName: string; monthIndex: number; existing?: PaymentRecord; mode: 'set_amount' | 'confirm_payment' } | null>(null);
   const [payDate, setPayDate] = useState('');
   const [payMethod, setPayMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [payNotes, setPayNotes] = useState('');
   const [receiptFile, setReceiptFile] = useState<{ url: string; name: string } | null>(null);
   const [receiptLoading, setReceiptLoading] = useState(false);
-  const [payAmount, setPayAmount] = useState<number>(0); // custom amount for this member
+  const [payAmount, setPayAmount] = useState<number>(0);
 
-  // Member "I've Paid" modal
-  const [memberPayModal, setMemberPayModal] = useState<{ memberId: string; memberName: string; monthIndex: number } | null>(null);
-  const [memberMethod, setMemberMethod] = useState<PaymentMethod>(PaymentMethod.GPAY);
+  // Member payment screen state — Paytm-style
+  const [memberPayScreen, setMemberPayScreen] = useState<{ memberId: string; memberName: string; monthIndex: number; defaultAmount: number } | null>(null);
+  const [memberPayAmount, setMemberPayAmount] = useState<number>(0);
+  const [memberPayStep, setMemberPayStep] = useState<'enter_amount' | 'choose_method'>('enter_amount');
+
+  // Member "I've Paid" confirm modal
+  const [memberClaimModal, setMemberClaimModal] = useState<{ memberId: string; memberName: string; monthIndex: number; amount: number; method: PaymentMethod } | null>(null);
   const [memberReceiptFile, setMemberReceiptFile] = useState<{ url: string; name: string } | null>(null);
   const [memberReceiptLoading, setMemberReceiptLoading] = useState(false);
   const [memberNotes, setMemberNotes] = useState('');
-  const [upiClickedFor, setUpiClickedFor] = useState<string | null>(null); // tracks which memberId clicked UPI
 
   // Receipt viewer
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
@@ -69,10 +72,9 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
   const expectedCollection = data.config.fixedMonthlyCollection * data.members.length;
   const potentialSurplus = expectedCollection - payoutToWinner;
   const hasUpi = !!data.config.upiId;
-
-  // Pending verifications count for admin badge
   const pendingVerifications = data.payments.filter(p => p.status === PaymentStatus.MEMBER_CLAIMED).length;
 
+  // Admin modal
   const openAdminModal = (memberId: string, memberName: string, monthIndex: number, existing?: PaymentRecord, mode: 'set_amount' | 'confirm_payment' = 'confirm_payment') => {
     setAdminModal({ memberId, memberName, monthIndex, existing, mode });
     setPayDate(existing?.paymentDate || new Date().toISOString().split('T')[0]);
@@ -81,37 +83,12 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
     setReceiptFile(existing?.receiptUrl ? { url: existing.receiptUrl, name: existing.receiptName || 'receipt' } : null);
     setPayAmount(existing?.customAmount || data.config.fixedMonthlyCollection);
   };
-
   const closeAdminModal = () => { setAdminModal(null); setReceiptFile(null); setPayNotes(''); };
 
   const handleSetAmount = () => {
     if (!adminModal) return;
     onSetCustomAmount(adminModal.memberId, adminModal.monthIndex, payAmount);
     closeAdminModal();
-  };
-
-  const openMemberPayModal = (memberId: string, memberName: string, monthIndex: number) => {
-    setMemberPayModal({ memberId, memberName, monthIndex });
-    setMemberMethod(PaymentMethod.GPAY);
-    setMemberReceiptFile(null);
-    setMemberNotes('');
-    setUpiClicked(false);
-  };
-
-  const closeMemberPayModal = () => { setMemberPayModal(null); setMemberReceiptFile(null); setMemberNotes(''); setUpiClicked(false); };
-
-  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>, isMember = false) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { alert('File too large. Max 2MB.'); return; }
-    if (isMember) setMemberReceiptLoading(true); else setReceiptLoading(true);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const result = { url: ev.target?.result as string, name: file.name };
-      if (isMember) { setMemberReceiptFile(result); setMemberReceiptLoading(false); }
-      else { setReceiptFile(result); setReceiptLoading(false); }
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleAdminConfirm = () => {
@@ -122,25 +99,57 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
     closeAdminModal();
   };
 
-  // Member submits "I've Paid" — sets MEMBER_CLAIMED status so admin can verify
+  // Member payment screen
+  const openMemberPayScreen = (memberId: string, memberName: string, monthIndex: number, amount: number) => {
+    setMemberPayScreen({ memberId, memberName, monthIndex, defaultAmount: amount });
+    setMemberPayAmount(amount);
+    setMemberPayStep('enter_amount');
+  };
+  const closeMemberPayScreen = () => { setMemberPayScreen(null); setMemberPayStep('enter_amount'); };
+
+  // Member claim modal (after paying via UPI or cash)
+  const openMemberClaimModal = (method: PaymentMethod) => {
+    if (!memberPayScreen) return;
+    setMemberClaimModal({ memberId: memberPayScreen.memberId, memberName: memberPayScreen.memberName, monthIndex: memberPayScreen.monthIndex, amount: memberPayAmount, method });
+    setMemberReceiptFile(null);
+    setMemberNotes('');
+    closeMemberPayScreen();
+  };
+
   const handleMemberClaim = () => {
-    if (!memberPayModal) return;
+    if (!memberClaimModal) return;
     const today = new Date().toISOString().split('T')[0];
-    onUpdateStatus(memberPayModal.memberId, memberPayModal.monthIndex, PaymentStatus.MEMBER_CLAIMED, memberMethod, 0, today, memberReceiptFile?.url, memberReceiptFile?.name, memberNotes || 'Payment claimed by member — awaiting admin confirmation');
-    closeMemberPayModal();
+    onUpdateStatus(memberClaimModal.memberId, memberClaimModal.monthIndex, PaymentStatus.MEMBER_CLAIMED, memberClaimModal.method, 0, today, memberReceiptFile?.url, memberReceiptFile?.name, memberNotes || 'Payment claimed by member — awaiting admin confirmation', memberClaimModal.amount !== data.config.fixedMonthlyCollection ? memberClaimModal.amount : undefined);
+    setMemberClaimModal(null);
+    setMemberReceiptFile(null);
+    setMemberNotes('');
+  };
+
+  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>, isMember = false) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert('Max 2MB'); return; }
+    if (isMember) setMemberReceiptLoading(true); else setReceiptLoading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = { url: ev.target?.result as string, name: file.name };
+      if (isMember) { setMemberReceiptFile(result); setMemberReceiptLoading(false); }
+      else { setReceiptFile(result); setReceiptLoading(false); }
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
     <div className="space-y-6">
 
-      {/* Admin: pending verifications alert */}
+      {/* Admin pending verifications alert */}
       {isAdmin && pendingVerifications > 0 && (
-        <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl shadow-sm animate-in fade-in">
+        <div className="flex items-center justify-between px-5 py-4 bg-amber-50 border border-amber-200 rounded-2xl shadow-sm">
           <div className="flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
             <div>
-              <p className="text-sm font-black text-amber-900">{pendingVerifications} Payment{pendingVerifications > 1 ? 's' : ''} Awaiting Your Confirmation</p>
-              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Members have claimed payment — please verify and confirm below</p>
+              <p className="text-sm font-black text-amber-900">{pendingVerifications} Payment{pendingVerifications > 1 ? 's' : ''} Awaiting Confirmation</p>
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Members claimed payment — verify below</p>
             </div>
           </div>
           <span className="w-7 h-7 flex items-center justify-center bg-amber-500 text-white text-xs font-black rounded-full">{pendingVerifications}</span>
@@ -196,9 +205,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 value={auctionAmount}
                 onChange={(e) => { const val = e.target.value === '' ? 0 : parseInt(e.target.value); onUpdateAuction(selectedMonthIdx, isNaN(val) ? 0 : val); }} />
             </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 italic">
-              Payout: ₹{payoutToWinner.toLocaleString()} (₹{data.config.monthlyPayoutBase.toLocaleString()} - ₹{auctionAmount.toLocaleString()})
-            </p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase mt-2 italic">Payout: ₹{payoutToWinner.toLocaleString()} (₹{data.config.monthlyPayoutBase.toLocaleString()} - ₹{auctionAmount.toLocaleString()})</p>
           </div>
         </div>
         <div className="card p-6 flex flex-col justify-center bg-indigo-600 text-white border-none shadow-lg">
@@ -241,9 +248,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 const payment = data.payments.find(p => p.memberId === member.id && p.monthIndex === selectedMonthIdx);
                 const isPaid = payment?.status === PaymentStatus.PAID;
                 const isClaimed = payment?.status === PaymentStatus.MEMBER_CLAIMED;
-                // Use customAmount if admin set one, otherwise use default
-                const fixedAmount = payment?.customAmount || data.config.fixedMonthlyCollection;
-                const monthNote = `Chit ${formatMonthYear(data.config.startDate, selectedMonthIdx)}`;
+                const dueAmount = payment?.customAmount || data.config.fixedMonthlyCollection;
 
                 return (
                   <tr key={member.id} className={`hover:bg-slate-50/50 transition-colors ${isClaimed ? 'bg-amber-50/50' : ''}`}>
@@ -261,7 +266,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <p className="text-sm font-black text-slate-700 italic">₹{fixedAmount.toLocaleString()}</p>
+                        <p className="text-sm font-black text-slate-700 italic">₹{dueAmount.toLocaleString()}</p>
                         {payment?.customAmount && payment.customAmount !== data.config.fixedMonthlyCollection && (
                           <p className="text-[9px] text-amber-600 font-black uppercase tracking-widest">Custom ↑</p>
                         )}
@@ -285,130 +290,68 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                     <td className="px-6 py-4">
                       {(isPaid || isClaimed) && payment ? (
                         <div className="space-y-0.5">
-                          {payment.paymentDate && (
-                            <p className="text-[10px] text-slate-500 font-bold">📅 {new Date(payment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                          )}
-                          {payment.method && (
-                            <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest">💳 {payment.method}</p>
-                          )}
+                          {payment.paymentDate && <p className="text-[10px] text-slate-500 font-bold">📅 {new Date(payment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+                          {payment.method && <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest">💳 {payment.method}</p>}
                           {payment.receiptUrl && (
-                            <button onClick={() => setViewReceiptUrl(payment.receiptUrl!)}
-                              className="flex items-center space-x-1 text-[10px] text-emerald-600 font-black uppercase hover:underline">
+                            <button onClick={() => setViewReceiptUrl(payment.receiptUrl!)} className="flex items-center space-x-1 text-[10px] text-emerald-600 font-black uppercase hover:underline">
                               <FileImage className="w-3 h-3" /><span>View Receipt</span>
                             </button>
                           )}
-                          {isClaimed && (
-                            <p className="text-[9px] text-amber-600 font-black uppercase tracking-widest">⏳ Awaiting admin confirm</p>
-                          )}
+                          {isClaimed && <p className="text-[9px] text-amber-600 font-black uppercase">⏳ Awaiting admin confirm</p>}
                         </div>
-                      ) : (
-                        <span className="text-[10px] text-slate-300 font-bold">—</span>
-                      )}
+                      ) : <span className="text-[10px] text-slate-300 font-bold">—</span>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
                       {isAdmin ? (
-                        /* ── ADMIN ACTIONS ── */
                         <div className="flex items-center justify-end space-x-1.5">
                           {isClaimed ? (
-                            /* Claimed by member — admin can confirm or reject */
                             <>
-                              <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment)}
-                                className="flex items-center space-x-1 px-3 py-2 bg-amber-500 text-white text-[10px] font-black rounded-xl hover:bg-amber-600 transition-all active:scale-95 uppercase tracking-widest">
+                              <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment, 'confirm_payment')}
+                                className="flex items-center space-x-1 px-3 py-2 bg-amber-500 text-white text-[10px] font-black rounded-xl hover:bg-amber-600 transition-all active:scale-95 uppercase">
                                 <ShieldCheck className="w-3.5 h-3.5" /><span>Confirm</span>
                               </button>
                               <button onClick={() => onUpdateStatus(member.id, selectedMonthIdx, PaymentStatus.PENDING)}
-                                className="px-3 py-2 bg-rose-50 text-rose-500 text-[10px] font-black rounded-xl hover:bg-rose-100 transition-all uppercase tracking-widest border border-rose-100">
+                                className="px-3 py-2 bg-rose-50 text-rose-500 text-[10px] font-black rounded-xl hover:bg-rose-100 transition-all uppercase border border-rose-100">
                                 Reject
                               </button>
                             </>
                           ) : !isPaid ? (
                             <div className="flex flex-col items-end space-y-1">
                               <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment, 'confirm_payment')}
-                                className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 transition-all shadow-sm active:scale-95 uppercase tracking-widest">
+                                className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-600 text-white text-[10px] font-black rounded-xl hover:bg-indigo-700 transition-all shadow-sm active:scale-95 uppercase">
                                 <BadgeCheck className="w-3.5 h-3.5" /><span>Collect</span>
                               </button>
                               <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment, 'set_amount')}
-                                className="text-[9px] text-indigo-400 font-black hover:text-indigo-600 underline tracking-widest uppercase">
-                                Set Amount
-                              </button>
+                                className="text-[9px] text-indigo-400 font-black hover:text-indigo-600 underline uppercase">Set Amount</button>
                             </div>
                           ) : (
                             <div className="flex space-x-1.5">
-                              <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment)}
+                              <button onClick={() => openAdminModal(member.id, member.name, selectedMonthIdx, payment, 'confirm_payment')}
                                 className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-indigo-50 hover:text-indigo-600 transition-all">
                                 <Eye className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => onUpdateStatus(member.id, selectedMonthIdx, PaymentStatus.PENDING)}
-                                className="px-3 py-1.5 bg-white text-slate-400 text-[10px] font-black rounded-lg hover:text-rose-500 transition-all uppercase tracking-widest border border-slate-100 shadow-sm">
-                                Undo
-                              </button>
+                                className="px-3 py-1.5 bg-white text-slate-400 text-[10px] font-black rounded-lg hover:text-rose-500 transition-all uppercase border border-slate-100">Undo</button>
                             </div>
                           )}
                         </div>
                       ) : (
-                        /* ── MEMBER ACTIONS ── */
-                        <div className="flex flex-col items-end space-y-2">
+                        /* ── MEMBER ACTION ── */
+                        <div className="flex items-center justify-end">
                           {isPaid ? (
                             <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-600 font-black uppercase tracking-widest">
                               <CheckCircle2 className="w-3.5 h-3.5" /><span>Paid ✓</span>
                             </span>
                           ) : isClaimed ? (
                             <span className="inline-flex items-center space-x-1 text-[10px] text-amber-600 font-black uppercase tracking-widest">
-                              <Clock className="w-3.5 h-3.5" /><span>Submitted — Waiting Confirm</span>
+                              <Clock className="w-3.5 h-3.5" /><span>Pending Confirm</span>
                             </span>
                           ) : (
-                            <>
-                              {upiClickedFor === member.id ? (
-                                /* STEP 2: After UPI tap — show "I've Paid" confirm button */
-                                <div className="flex flex-col items-end space-y-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                  <p className="text-[9px] text-emerald-600 font-black uppercase tracking-widest">✓ Payment opened! Done?</p>
-                                  <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
-                                    className="flex items-center space-x-1.5 px-4 py-2.5 bg-emerald-600 text-white text-[10px] font-black rounded-xl hover:bg-emerald-700 transition-all active:scale-95 uppercase tracking-widest shadow-lg animate-pulse">
-                                    <CheckCircle2 className="w-4 h-4" /><span>I've Paid ✓</span>
-                                  </button>
-                                  <button onClick={() => setUpiClickedFor(null)}
-                                    className="text-[9px] text-slate-400 font-bold hover:text-slate-600 underline">
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                /* STEP 1: Show Pay Now which expands to UPI options */
-                                <div className="flex flex-col items-end space-y-1.5">
-                                  {hasUpi ? (
-                                    <>
-                                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Pay ₹{fixedAmount.toLocaleString()} via</p>
-                                      <div className="flex space-x-1">
-                                        <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'gpay')}
-                                          onClick={() => setUpiClickedFor(member.id)}
-                                          className="flex items-center space-x-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 text-[9px] font-black rounded-lg border border-blue-100 hover:bg-blue-100 transition-all active:scale-95">
-                                          <Smartphone className="w-3 h-3" /><span>GPay</span>
-                                        </a>
-                                        <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'phonepe')}
-                                          onClick={() => setUpiClickedFor(member.id)}
-                                          className="flex items-center space-x-1 px-2.5 py-1.5 bg-purple-50 text-purple-700 text-[9px] font-black rounded-lg border border-purple-100 hover:bg-purple-100 transition-all active:scale-95">
-                                          <Smartphone className="w-3 h-3" /><span>PhonePe</span>
-                                        </a>
-                                        <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, fixedAmount, monthNote, 'paytm')}
-                                          onClick={() => setUpiClickedFor(member.id)}
-                                          className="flex items-center space-x-1 px-2.5 py-1.5 bg-sky-50 text-sky-700 text-[9px] font-black rounded-lg border border-sky-100 hover:bg-sky-100 transition-all active:scale-95">
-                                          <Wallet className="w-3 h-3" /><span>Paytm</span>
-                                        </a>
-                                      </div>
-                                      <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
-                                        className="text-[9px] text-slate-400 font-bold hover:text-slate-600 underline tracking-widest">
-                                        Paid by cash? Click here
-                                      </button>
-                                    </>
-                                  ) : (
-                                    /* No UPI set — just show cash pay button */
-                                    <button onClick={() => openMemberPayModal(member.id, member.name, selectedMonthIdx)}
-                                      className="flex items-center space-x-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 text-[10px] font-black rounded-xl hover:bg-indigo-100 transition-all active:scale-95 uppercase tracking-widest border border-indigo-100">
-                                      <Banknote className="w-3.5 h-3.5" /><span>Mark as Paid</span>
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </>
+                            <button onClick={() => openMemberPayScreen(member.id, member.name, selectedMonthIdx, dueAmount)}
+                              className="flex items-center space-x-1.5 px-5 py-2.5 bg-indigo-600 text-white text-[11px] font-black rounded-xl hover:bg-indigo-700 transition-all active:scale-95 uppercase tracking-widest shadow-md">
+                              <span>Pay Now</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
                           )}
                         </div>
                       )}
@@ -423,6 +366,234 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
           <div className="py-20 text-center text-slate-400 uppercase font-black text-xs tracking-widest italic">No members found.</div>
         )}
       </div>
+
+      {/* ═══════════════════════════════════════════════
+          MEMBER PAYMENT SCREEN — Paytm style full screen
+          ═══════════════════════════════════════════════ */}
+      {memberPayScreen && (
+        <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col animate-in slide-in-from-bottom duration-300">
+
+          {/* Header */}
+          <div className="bg-white px-5 py-4 flex items-center space-x-4 border-b border-slate-100 shadow-sm">
+            <button onClick={closeMemberPayScreen} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+              <ChevronLeft className="w-5 h-5 text-slate-700" />
+            </button>
+            <div>
+              <h2 className="text-base font-black text-slate-900">Pay Chit Installment</h2>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}</p>
+            </div>
+          </div>
+
+          {memberPayStep === 'enter_amount' ? (
+            /* ── STEP 1: Name + Amount entry ── */
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+              {/* Member info card */}
+              <div className="bg-white rounded-2xl p-4 flex items-center space-x-4 shadow-sm border border-slate-100">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-lg">
+                  {memberPayScreen.memberName.charAt(0)}
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 text-base">{memberPayScreen.memberName}</p>
+                  <p className="text-[11px] text-slate-500 font-bold">{data.config.name} — {formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}</p>
+                </div>
+              </div>
+
+              {/* Payee info */}
+              {data.config.upiId && (
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Paying To</p>
+                  <p className="font-black text-slate-900">{data.config.upiName || data.config.name}</p>
+                  <p className="text-sm text-slate-500 font-medium">{data.config.upiId}</p>
+                </div>
+              )}
+
+              {/* Amount selection */}
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-4">
+                <p className="font-black text-slate-800 text-sm">Select amount to pay</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Due: {formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}</p>
+
+                {/* Total Due option */}
+                <button onClick={() => setMemberPayAmount(memberPayScreen.defaultAmount)}
+                  className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${memberPayAmount === memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-slate-50 hover:border-slate-200'}`}>
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${memberPayAmount === memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'}`}>
+                      {memberPayAmount === memberPayScreen.defaultAmount && <div className="w-2 h-2 bg-white rounded-full" />}
+                    </div>
+                    <span className="font-black text-slate-800">Total Due</span>
+                  </div>
+                  <span className="font-black text-slate-900 text-lg">₹{memberPayScreen.defaultAmount.toLocaleString()}</span>
+                </button>
+
+                {/* Custom amount option */}
+                <div className={`w-full p-4 rounded-xl border-2 transition-all ${memberPayAmount !== memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-50' : 'border-slate-100 bg-slate-50'}`}>
+                  <div className="flex items-center space-x-3 mb-3">
+                    <button onClick={() => setMemberPayAmount(0)}
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${memberPayAmount !== memberPayScreen.defaultAmount ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'}`}>
+                      {memberPayAmount !== memberPayScreen.defaultAmount && <div className="w-2 h-2 bg-white rounded-full" />}
+                    </button>
+                    <span className="font-black text-slate-800">Customise Amount</span>
+                  </div>
+                  <div className="flex items-center bg-white border-2 border-slate-200 rounded-xl px-4 py-3 focus-within:border-indigo-500 transition-all">
+                    <span className="text-slate-400 font-bold mr-2 text-xl">₹</span>
+                    <input type="number"
+                      placeholder={memberPayScreen.defaultAmount.toString()}
+                      value={memberPayAmount !== memberPayScreen.defaultAmount ? memberPayAmount : ''}
+                      onChange={(e) => setMemberPayAmount(parseInt(e.target.value) || 0)}
+                      onClick={() => setMemberPayAmount(0)}
+                      className="bg-transparent font-black text-slate-900 outline-none w-full text-xl placeholder:text-slate-300" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ── STEP 2: Choose payment method ── */
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Amount to Pay</p>
+                  <p className="text-2xl font-black text-slate-900">₹{memberPayAmount.toLocaleString()}</p>
+                </div>
+                <button onClick={() => setMemberPayStep('enter_amount')} className="text-[10px] text-indigo-500 font-black uppercase tracking-widest hover:underline">Change</button>
+              </div>
+
+              <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 space-y-3">
+                <p className="font-black text-slate-800 text-sm">Pay using</p>
+
+                {hasUpi && (
+                  <>
+                    {/* GPay */}
+                    <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, memberPayAmount, `Chit ${formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}`, 'gpay')}
+                      onClick={() => setTimeout(() => openMemberClaimModal(PaymentMethod.GPAY), 1500)}
+                      className="flex items-center justify-between w-full p-4 bg-slate-50 hover:bg-blue-50 rounded-xl border border-slate-100 hover:border-blue-200 transition-all active:scale-95 group">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                          <Smartphone className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-black text-slate-900 text-sm">Google Pay</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Pay via GPay UPI</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                    </a>
+
+                    {/* PhonePe */}
+                    <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, memberPayAmount, `Chit ${formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}`, 'phonepe')}
+                      onClick={() => setTimeout(() => openMemberClaimModal(PaymentMethod.PHONEPE), 1500)}
+                      className="flex items-center justify-between w-full p-4 bg-slate-50 hover:bg-purple-50 rounded-xl border border-slate-100 hover:border-purple-200 transition-all active:scale-95 group">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                          <Smartphone className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-black text-slate-900 text-sm">PhonePe</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Pay via PhonePe UPI</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-purple-500 transition-colors" />
+                    </a>
+
+                    {/* Paytm */}
+                    <a href={buildUpiLink(data.config.upiId!, data.config.upiName || data.config.name, memberPayAmount, `Chit ${formatMonthYear(data.config.startDate, memberPayScreen.monthIndex)}`, 'paytm')}
+                      onClick={() => setTimeout(() => openMemberClaimModal(PaymentMethod.PAYTM), 1500)}
+                      className="flex items-center justify-between w-full p-4 bg-slate-50 hover:bg-sky-50 rounded-xl border border-slate-100 hover:border-sky-200 transition-all active:scale-95 group">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center">
+                          <Wallet className="w-5 h-5 text-sky-600" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-black text-slate-900 text-sm">Paytm</p>
+                          <p className="text-[10px] text-slate-400 font-medium">Pay via Paytm UPI</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-500 transition-colors" />
+                    </a>
+                  </>
+                )}
+
+                {/* Cash */}
+                <button onClick={() => openMemberClaimModal(PaymentMethod.CASH)}
+                  className="flex items-center justify-between w-full p-4 bg-slate-50 hover:bg-emerald-50 rounded-xl border border-slate-100 hover:border-emerald-200 transition-all active:scale-95 group">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                      <Banknote className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-black text-slate-900 text-sm">Cash</p>
+                      <p className="text-[10px] text-slate-400 font-medium">Paid in person</p>
+                    </div>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 transition-colors" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom CTA */}
+          <div className="bg-white border-t border-slate-100 p-4 shadow-lg">
+            {memberPayStep === 'enter_amount' ? (
+              <button
+                onClick={() => memberPayAmount > 0 && setMemberPayStep('choose_method')}
+                disabled={memberPayAmount <= 0}
+                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center space-x-2">
+                <span>Proceed to Pay ₹{memberPayAmount > 0 ? memberPayAmount.toLocaleString() : '—'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Select a payment method above</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Member "I've Paid" confirm modal ── */}
+      {memberClaimModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-emerald-600 px-6 py-5 flex items-center justify-between">
+              <div>
+                <p className="text-emerald-200 text-[10px] font-black uppercase tracking-widest">Confirm Payment</p>
+                <h2 className="text-white text-xl font-black">{memberClaimModal.memberName}</h2>
+                <p className="text-emerald-200 text-xs mt-0.5">₹{memberClaimModal.amount.toLocaleString()} via {memberClaimModal.method}</p>
+              </div>
+              <button onClick={() => setMemberClaimModal(null)} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors">
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700 font-bold">
+                ℹ️ Upload your payment screenshot — this helps the admin verify faster!
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">🧾 Payment Screenshot</label>
+                {memberReceiptFile ? (
+                  <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200">
+                    <img src={memberReceiptFile.url} alt="receipt" className="w-full max-h-40 object-cover cursor-pointer" onClick={() => setViewReceiptUrl(memberReceiptFile.url)} />
+                    <button onClick={() => setMemberReceiptFile(null)} className="absolute top-2 right-2 p-1.5 bg-white rounded-lg shadow text-rose-500">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/50 transition-all bg-slate-50">
+                    {memberReceiptLoading ? <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> : <><Upload className="w-5 h-5 text-slate-400 mb-1" /><span className="text-[10px] font-black text-slate-400 uppercase">Upload Screenshot</span></>}
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleReceiptUpload(e, true)} />
+                  </label>
+                )}
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📝 Note to Admin</label>
+                <input type="text" placeholder="e.g. Txn ID: 123456..." value={memberNotes} onChange={(e) => setMemberNotes(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm text-slate-900 outline-none focus:border-emerald-500 transition-all placeholder:text-slate-300" />
+              </div>
+              <button onClick={handleMemberClaim}
+                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest shadow-xl">
+                <CheckCircle2 className="w-5 h-5" /><span>Submit — Payment Done ✓</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── ADMIN Collect Modal ── */}
       {adminModal && (
@@ -441,154 +612,81 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
               </button>
             </div>
             <div className="p-6 space-y-5">
-              {/* Show member's uploaded receipt if claimed */}
               {adminModal.existing?.receiptUrl && adminModal.existing.status === PaymentStatus.MEMBER_CLAIMED && (
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-200">
                   <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-2">📎 Receipt from Member</p>
-                  <img src={adminModal.existing.receiptUrl} alt="Member receipt" className="w-full max-h-32 object-contain rounded-lg cursor-pointer"
-                    onClick={() => setViewReceiptUrl(adminModal.existing!.receiptUrl!)} />
-                  {adminModal.existing.notes && <p className="text-[10px] text-amber-600 mt-2 font-medium">Note: {adminModal.existing.notes}</p>}
+                  <img src={adminModal.existing.receiptUrl} alt="receipt" className="w-full max-h-32 object-contain rounded-lg cursor-pointer" onClick={() => setViewReceiptUrl(adminModal.existing!.receiptUrl!)} />
+                  {adminModal.existing.notes && <p className="text-[10px] text-amber-600 mt-2 font-medium">{adminModal.existing.notes}</p>}
                 </div>
               )}
-              {/* Editable Amount */}
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">💰 Amount to Collect</label>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">💰 Amount</label>
                 <div className="flex items-center bg-slate-50 border-2 border-slate-100 rounded-xl px-4 py-3 focus-within:border-indigo-500 transition-all">
                   <span className="text-slate-400 font-bold mr-2 text-lg">₹</span>
-                  <input type="number"
-                    value={payAmount}
-                    onChange={(e) => setPayAmount(parseInt(e.target.value) || 0)}
+                  <input type="number" value={payAmount} onChange={(e) => setPayAmount(parseInt(e.target.value) || 0)}
                     className="bg-transparent font-black text-slate-900 outline-none w-full text-xl" />
                 </div>
                 {payAmount !== data.config.fixedMonthlyCollection && (
                   <div className="flex items-center justify-between mt-1.5">
-                    <p className="text-[9px] text-amber-600 font-black uppercase tracking-widest">⚠ Custom amount (default: ₹{data.config.fixedMonthlyCollection.toLocaleString()})</p>
+                    <p className="text-[9px] text-amber-600 font-black uppercase">⚠ Custom (default: ₹{data.config.fixedMonthlyCollection.toLocaleString()})</p>
                     <button onClick={() => setPayAmount(data.config.fixedMonthlyCollection)} className="text-[9px] text-indigo-500 font-black hover:underline">Reset</button>
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📅 Payment Date</label>
-                <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-black text-slate-900 focus:border-indigo-500 outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">💳 Payment Method</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {METHOD_OPTIONS.map((m) => (
-                    <button key={m.value} onClick={() => setPayMethod(m.value)}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all text-[9px] font-black uppercase tracking-widest gap-1
-                        ${payMethod === m.value ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-md scale-105' : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-indigo-200'}`}>
-                      {m.icon}{m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">🧾 Receipt (optional)</label>
-                {receiptFile ? (
-                  <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200">
-                    <img src={receiptFile.url} alt="receipt" className="w-full max-h-32 object-cover cursor-pointer" onClick={() => setViewReceiptUrl(receiptFile.url)} />
-                    <button onClick={() => setReceiptFile(null)} className="absolute top-2 right-2 p-1.5 bg-white rounded-lg shadow text-slate-600 hover:text-rose-500">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+              {adminModal.mode === 'confirm_payment' && (
+                <>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📅 Payment Date</label>
+                    <input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl font-black text-slate-900 focus:border-indigo-500 outline-none" />
                   </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 transition-all bg-slate-50">
-                    {receiptLoading ? <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /> : <><Upload className="w-5 h-5 text-slate-400 mb-1" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Receipt</span></>}
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleReceiptUpload(e, false)} />
-                  </label>
-                )}
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📝 Notes</label>
-                <input type="text" placeholder="Optional notes..." value={payNotes} onChange={(e) => setPayNotes(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-500 transition-all placeholder:text-slate-300" />
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">💳 Payment Method</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {METHOD_OPTIONS.map((m) => (
+                        <button key={m.value} onClick={() => setPayMethod(m.value)}
+                          className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all text-[9px] font-black uppercase gap-1
+                            ${payMethod === m.value ? 'border-indigo-500 bg-indigo-50 text-indigo-700 scale-105' : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-indigo-200'}`}>
+                          {m.icon}{m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">🧾 Receipt</label>
+                    {receiptFile ? (
+                      <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200">
+                        <img src={receiptFile.url} alt="receipt" className="w-full max-h-32 object-cover cursor-pointer" onClick={() => setViewReceiptUrl(receiptFile.url)} />
+                        <button onClick={() => setReceiptFile(null)} className="absolute top-2 right-2 p-1.5 bg-white rounded-lg shadow text-rose-500"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 bg-slate-50">
+                        {receiptLoading ? <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /> : <><Upload className="w-5 h-5 text-slate-400 mb-1" /><span className="text-[10px] font-black text-slate-400 uppercase">Upload Receipt</span></>}
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleReceiptUpload(e, false)} />
+                      </label>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📝 Notes</label>
+                    <input type="text" placeholder="Optional..." value={payNotes} onChange={(e) => setPayNotes(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm text-slate-900 outline-none focus:border-indigo-500 placeholder:text-slate-300" />
+                  </div>
+                </>
+              )}
               {adminModal.mode === 'set_amount' ? (
-                /* SET AMOUNT MODE — saves custom amount, keeps status as PENDING */
                 <div className="space-y-3">
                   <button onClick={handleSetAmount}
-                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest">
+                    className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase">
                     <BadgeCheck className="w-5 h-5" /><span>Save Amount for Member</span>
                   </button>
-                  <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Member will see ₹{payAmount.toLocaleString()} in their payment link</p>
+                  <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Member will see ₹{payAmount.toLocaleString()} in their Pay Now screen</p>
                 </div>
               ) : (
-                /* CONFIRM PAYMENT MODE — marks as fully paid */
                 <button onClick={handleAdminConfirm}
-                  className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest">
+                  className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase">
                   <CheckCircle2 className="w-5 h-5" /><span>Confirm Payment Received</span>
                 </button>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MEMBER "I've Paid" Modal ── */}
-      {memberPayModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-emerald-600 px-6 py-5 flex items-center justify-between">
-              <div>
-                <p className="text-emerald-200 text-[10px] font-black uppercase tracking-widest">Submit Payment</p>
-                <h2 className="text-white text-xl font-black">{memberPayModal.memberName}</h2>
-                <p className="text-emerald-200 text-xs mt-0.5">{formatMonthYear(data.config.startDate, memberPayModal.monthIndex)} · ₹{data.config.fixedMonthlyCollection.toLocaleString()}</p>
-              </div>
-              <button onClick={closeMemberPayModal} className="p-2 bg-white/20 rounded-xl hover:bg-white/30 transition-colors">
-                <X className="w-5 h-5 text-white" />
-              </button>
-            </div>
-            <div className="p-6 space-y-5">
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700 font-bold">
-                ℹ️ After submitting, your admin will verify and confirm your payment. Your status will update to <span className="font-black">Received</span> once confirmed.
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">💳 How did you pay?</label>
-                <div className="grid grid-cols-5 gap-2">
-                  {METHOD_OPTIONS.map((m) => (
-                    <button key={m.value} onClick={() => setMemberMethod(m.value)}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all text-[9px] font-black uppercase gap-1
-                        ${memberMethod === m.value ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-md scale-105' : 'border-slate-100 bg-slate-50 text-slate-500 hover:border-emerald-200'}`}>
-                      {m.icon}{m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">🧾 Upload Screenshot / Receipt</label>
-                {memberReceiptFile ? (
-                  <div className="relative rounded-xl overflow-hidden border-2 border-emerald-200">
-                    <img src={memberReceiptFile.url} alt="receipt" className="w-full max-h-40 object-cover cursor-pointer" onClick={() => setViewReceiptUrl(memberReceiptFile.url)} />
-                    <button onClick={() => setMemberReceiptFile(null)} className="absolute top-2 right-2 p-1.5 bg-white rounded-lg shadow text-slate-600 hover:text-rose-500">
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                    <div className="px-3 py-2 bg-emerald-100">
-                      <p className="text-[9px] font-black text-emerald-700 truncate">{memberReceiptFile.name}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/50 transition-all bg-slate-50">
-                    {memberReceiptLoading ? <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /> : <><Upload className="w-5 h-5 text-slate-400 mb-1" /><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Payment Screenshot</span><span className="text-[9px] text-slate-300 mt-0.5">Strongly recommended for faster verification</span></>}
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleReceiptUpload(e, true)} />
-                  </label>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">📝 Note to Admin (optional)</label>
-                <input type="text" placeholder="e.g. Paid via GPay, txn ID 123456..."
-                  value={memberNotes} onChange={(e) => setMemberNotes(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm text-slate-900 outline-none focus:border-emerald-500 transition-all placeholder:text-slate-300" />
-              </div>
-
-              <button onClick={handleMemberClaim}
-                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-95 flex items-center justify-center space-x-2 text-sm uppercase tracking-widest shadow-xl">
-                <CheckCircle2 className="w-5 h-5" /><span>Submit — I've Paid ✓</span>
-              </button>
             </div>
           </div>
         </div>
@@ -604,7 +702,7 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
             <div className="bg-white rounded-3xl overflow-hidden shadow-2xl">
               <div className="bg-slate-900 px-4 py-3 flex items-center space-x-2">
                 <FileImage className="w-4 h-4 text-slate-400" />
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt / Screenshot</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Receipt</span>
               </div>
               <img src={viewReceiptUrl} alt="Receipt" className="w-full max-h-[70vh] object-contain" />
             </div>
