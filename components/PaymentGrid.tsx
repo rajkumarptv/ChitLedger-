@@ -11,6 +11,7 @@ import { formatMonthYear, getCurrentMonthIndex } from '../utils/dateUtils';
 interface PaymentGridProps {
   data: AppData;
   userRole: UserRole;
+  loggedInPhone: string;
   onUpdateStatus: (memberId: string, monthIndex: number, status: PaymentStatus, method?: PaymentMethod, extraAmount?: number, customDate?: string, receiptUrl?: string, receiptName?: string, notes?: string, customAmount?: number) => void;
   onSetCustomAmount: (memberId: string, monthIndex: number, customAmount: number) => void;
   onUpdateAuction: (monthIndex: number, amount: number) => void;
@@ -34,7 +35,7 @@ const METHOD_OPTIONS = [
   { value: PaymentMethod.OTHER,   label: 'Other',    icon: <CreditCard className="w-4 h-4" />, color: 'bg-slate-50 border-slate-200 text-slate-700' },
 ];
 
-export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpdateStatus, onSetCustomAmount, onUpdateAuction }) => {
+export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, loggedInPhone, onUpdateStatus, onSetCustomAmount, onUpdateAuction }) => {
   const realCurrentMonthIdx = getCurrentMonthIndex(data.config.startDate);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(realCurrentMonthIdx);
   const [searchTerm, setSearchTerm] = useState('');
@@ -251,6 +252,8 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                 const isPaid = payment?.status === PaymentStatus.PAID;
                 const isClaimed = payment?.status === PaymentStatus.MEMBER_CLAIMED;
                 const dueAmount = payment?.customAmount || data.config.fixedMonthlyCollection;
+                // Member can only pay their own row
+                const isMyRow = member.phone === loggedInPhone;
 
                 return (
                   <tr key={member.id} className={`hover:bg-slate-50/50 transition-colors ${isClaimed ? 'bg-amber-50/50' : ''}`}>
@@ -348,12 +351,16 @@ export const PaymentGrid: React.FC<PaymentGridProps> = ({ data, userRole, onUpda
                             <span className="inline-flex items-center space-x-1 text-[10px] text-amber-600 font-black uppercase tracking-widest">
                               <Clock className="w-3.5 h-3.5" /><span>Pending Confirm</span>
                             </span>
-                          ) : (
+                          ) : isMyRow ? (
+                            /* Only show Pay Now for the logged-in member's own row */
                             <button onClick={() => openMemberPayScreen(member.id, member.name, selectedMonthIdx, dueAmount)}
                               className="flex items-center space-x-1.5 px-5 py-2.5 bg-indigo-600 text-white text-[11px] font-black rounded-xl hover:bg-indigo-700 transition-all active:scale-95 uppercase tracking-widest shadow-md">
                               <span>Pay Now</span>
                               <ArrowRight className="w-3.5 h-3.5" />
                             </button>
+                          ) : (
+                            /* Other members' rows — show nothing or a lock */
+                            <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">—</span>
                           )}
                         </div>
                       )}
