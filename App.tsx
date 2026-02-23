@@ -285,7 +285,7 @@ const App: React.FC = () => {
 
       {activeTab === 'dashboard' && <Dashboard data={data} />}
       {activeTab === 'payments' && (
-        <PaymentGrid data={data} userRole={auth.role} onUpdateStatus={handleUpdatePayment} onSetCustomAmount={handleSetCustomAmount} onUpdateAuction={handleUpdateAuction} />
+        <PaymentGrid data={data} userRole={auth.role} loggedInPhone={auth.phoneNumber} onUpdateStatus={handleUpdatePayment} onSetCustomAmount={handleSetCustomAmount} onUpdateAuction={handleUpdateAuction} />
       )}
       {activeTab === 'members' && (
         <MemberList members={data.members} userRole={auth.role} onAddMember={handleAddMember} onUpdateMember={handleUpdateMember} onDeleteMember={handleDeleteMember} />
